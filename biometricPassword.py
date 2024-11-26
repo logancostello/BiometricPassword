@@ -1,43 +1,84 @@
 import curses
 import time
+import statistics
 
-def main(stdscr):
-    # Clear the screen initially
+ATTEMPTS_REQUIRED_FOR_SIGNUP = 3 
+
+def start(stdscr):
     stdscr.clear()
     stdscr.refresh()
 
-    # Display initial message
-    stdscr.addstr(0, 0, "Welcome to the biometric password authenticator!")
-    stdscr.addstr(1, 0, "You will be prompted to set a password.")
-    stdscr.addstr(2, 0, "Afterwards, you can attempt to enter the correct password.")
-    stdscr.addstr(3, 0, "However, the way in which you type the password will be used for authentication")
-    stdscr.addstr(5, 0, "Enter your password:")
-    stdscr.refresh()
-
-    password = record_input(stdscr, 6)
-
-    stdscr.addstr(8, 0, "Your password is now set.")
-    stdscr.addstr(9, 0, "Now enter your password to be authenticated")
-    stdscr.addstr(10, 0, "At any point, submit an empty guess to end the program.")
-    
-    stdscr.addstr(12, 0, "Enter your guess:")
-
-    attempt = record_input(stdscr, 14)
-    while attempt[0]:
-    
-        if attempt == password:
-            stdscr.addstr(12, 0, "Password is correct! You have been authenticated. Try again?")
-        else:
-            stdscr.addstr(12, 0, "Incorrect password. You were not authenticated. Try again?")
-        stdscr.refresh()
-
-        attempt = record_input(stdscr, 14)
-
-def record_input(stdscr, row):
     curses.curs_set(0)  # Hide the cursor
     stdscr.nodelay(1)   # Non-blocking input
     stdscr.timeout(100)  # Refresh every 100ms
 
+    # Intro messages
+    stdscr.addstr(0, 0, "Welcome to the biometric password authenticator!")
+    stdscr.addstr(1, 0, "This program uses keystroke dynamics for authentication.")
+    stdscr.addstr(2, 0, "First you need to set a password.")
+    stdscr.addstr(4, 0, f"Enter your new password {ATTEMPTS_REQUIRED_FOR_SIGNUP} times.")
+    stdscr.refresh()    
+    
+    passwords = set()
+    timings = []
+
+    # Collect n passwords and their timings
+    for i in range(ATTEMPTS_REQUIRED_FOR_SIGNUP):
+        stdscr.addstr(5 + i, 0, f"{i + 1}.")
+        stdscr.refresh()
+        password, timing = record_input(stdscr)
+        passwords.add(password)
+        timings.append(timing)
+        stdscr.addstr(5 + i, 3, password)
+        stdscr.refresh()
+    
+    # Check that the passwords were all the same
+    if len(passwords) != 1:
+        stdscr.addstr(6 + ATTEMPTS_REQUIRED_FOR_SIGNUP, 0, "Your passwords did not match. Try again? (y/n)")
+        while True:
+            key = stdscr.getch()
+
+            if key == ord('y'):
+                curses.wrapper(start)
+                break
+            elif key == ord('n'):
+                break
+    else:
+        stdscr.addstr(6 + ATTEMPTS_REQUIRED_FOR_SIGNUP, 0, "Your password is set")
+        stdscr.refresh()
+        
+        avgs = average(timings)
+        stds = std(timings)
+        password = list(passwords)[0]
+      
+        handle_attempts(stdscr, password, avgs, stds, 7 + ATTEMPTS_REQUIRED_FOR_SIGNUP)
+
+def handle_attempts(stdscr, password, avgs, stds, row):
+    stdscr.move(row, 0) 
+    stdscr.clrtobot()
+
+    stdscr.addstr(row, 0, "You may now attempt to sign in using the password you set. (Enter nothing to exit)")
+
+    attempt, timing = record_input(stdscr)
+    attempt_num = 1
+    while attempt:
+        stdscr.move(row + 2, 0) 
+        stdscr.clrtobot()    
+        
+        stdscr.addstr(row + 2, 0, f"Attempt {attempt_num}: {attempt}")
+
+        if attempt == password and isExpectedTiming(timing, avgs, stds):
+            stdscr.addstr(row + 3, 0, "You entered the right password! Feel free to try again!")
+        else:
+            stdscr.addstr(row + 3, 0, "You entered the wrong password. Try again.")
+        stdscr.refresh()
+        attempt, timing = record_input(stdscr)
+        attempt_num += 1
+
+def isExpectedTiming(timings, avg, std):
+    return True
+
+def record_input(stdscr):
     pressed_keys = []
     recorded_times = []
 
@@ -58,16 +99,26 @@ def record_input(stdscr, row):
             
             if key == 10: # If the enter key is pressed
                 break
-    stdscr.move(row, 0) 
-    stdscr.clrtobot()
 
     recorded = "".join(pressed_keys)[:-1] # exclude the last keypress (the enter button)
     recorded_times.pop(0) # exclude the first time interval (time from message to first key)
 
-    stdscr.addstr(row, 0, f"You entered: {recorded}. The times were: {recorded_times}")
-
     return [recorded, recorded_times]
 
+def average(timings):
+    avgs = []
+    for differences in zip(*timings):
+        avg = sum(differences) / len(differences)
+        avgs.append(avg)
+    return avgs
+
+def std(timings):
+    stds = []
+    for differences in zip(*timings):
+        std = statistics.stdev(differences)
+        stds.append(std)
+    return stds
+
 # Automatically handles initialization and cleanup
-curses.wrapper(main)
+curses.wrapper(start)
 
