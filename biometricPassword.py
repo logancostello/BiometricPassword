@@ -3,6 +3,7 @@ import time
 import statistics
 
 ATTEMPTS_REQUIRED_FOR_SIGNUP = 3 
+STDS_ALLOWED = 5
 
 def start(stdscr):
     stdscr.clear()
@@ -59,7 +60,7 @@ def handle_attempts(stdscr, password, avgs, stds, row):
 
     stdscr.addstr(row, 0, "You may now attempt to sign in using the password you set. (Enter nothing to exit)")
 
-    attempt, timing = record_input(stdscr)
+    attempt, timings = record_input(stdscr)
     attempt_num = 1
     while attempt:
         stdscr.move(row + 2, 0) 
@@ -67,16 +68,20 @@ def handle_attempts(stdscr, password, avgs, stds, row):
         
         stdscr.addstr(row + 2, 0, f"Attempt {attempt_num}: {attempt}")
 
-        if attempt == password and isExpectedTiming(timing, avgs, stds):
+        if attempt == password and isExpectedTiming(timings, avgs, stds):
             stdscr.addstr(row + 3, 0, "You entered the right password! Feel free to try again!")
         else:
             stdscr.addstr(row + 3, 0, "You entered the wrong password. Try again.")
         stdscr.refresh()
-        attempt, timing = record_input(stdscr)
+        attempt, timings = record_input(stdscr)
         attempt_num += 1
 
-def isExpectedTiming(timings, avg, std):
+def isExpectedTiming(timings, avgs, stds):
+    for timing, avg, std in zip(timings, avgs, stds):
+        if abs(timing - avg) > std * STDS_ALLOWED:
+            return False
     return True
+
 
 def record_input(stdscr):
     pressed_keys = []
