@@ -62,6 +62,7 @@ def handle_attempts(stdscr, password, avgs, stds, row):
 
     attempt, timings = record_input(stdscr)
     attempt_num = 1
+    success_cnt = 0
     while attempt:
         stdscr.move(row + 2, 0) 
         stdscr.clrtobot()    
@@ -70,8 +71,10 @@ def handle_attempts(stdscr, password, avgs, stds, row):
 
         if attempt == password and isExpectedTiming(timings, avgs, stds):
             stdscr.addstr(row + 3, 0, "You entered the right password! Feel free to try again!")
+            success_cnt += 1
         else:
             stdscr.addstr(row + 3, 0, "You entered the wrong password. Try again.")
+        stdscr.addstr(row + 5, 0, f"Success rate: {round(success_cnt / attempt_num, 2) * 100}%")
         stdscr.refresh()
         attempt, timings = record_input(stdscr)
         attempt_num += 1
